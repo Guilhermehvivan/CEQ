@@ -1,0 +1,243 @@
+---
+title: "CEQ"
+author: "Guilherme"
+date: "12/02/2023"
+output:
+  slidy_presentation: default
+  powerpoint_presentation: default
+  ioslides_presentation: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+
+library(SixSigma)
+library(qcc)
+```
+
+
+
+## Introdução 
+
+
+```{r Introdução }
+
+data = as.data.frame(ss.data.density, row.names = c(seq(1, 24, 1)))
+colnames(data) = c('pdensity')
+
+#FERRAMENTA 1
+cc = qcc(data = data$pdensity, type = "xbar.one")
+summary(cc)
+
+```
+
+
+## D
+
+```{r Mapa do processo}
+
+inputs.overall = c("máquinas", "biomassa")
+outputs.overall = c("Densidade", "Durabilidade", "Seco")
+steps = c("Picar", "Secar", "Moer", "Comprimir e cortar")
+
+io = list()
+io[[1]] = list("Toras de madeira", "Picador")
+io[[2]] = list("Fornalha")
+io[[3]] = list("Maravalha", "Moinho de martelo")
+io[[4]] = list("Compressor", "Pó")
+
+param = list()
+param[[1]] = list(c("Tipo de biomassa", "P"), c("Operador", "N"))
+param[[2]] = list(c("Calor", "C"), c("Tipo de biomassa", "P"), c("Operador", "N"))
+param[[3]] = list(c("Velocidade", "C"), c("Tipo de biomassa", "P"), c("Operador", "N"))
+param[[4]] = list(c("Lâmina", "C"), c("Pressão", "Cr"), c("Tipo de biomassa", "P"), c("Operador", "N"))
+
+feat = list()
+feat[[1]] = list("Tamanho")
+feat[[2]] = list("Umidade")
+feat[[3]] = list("Uniformidade")
+feat[[4]] = list("Densidade", "Durabilidade", "Seco")
+
+ss.pMap(steps, inputs.overall, outputs.overall, io, param, feat, sub="Projeto para produção de Pellet de madeira")
+
+```
+
+## M
+
+```{r Causa e efeito}
+
+#FERRAMENTA 2
+
+cManpower = c("Recepcionista", "Operadores dos registros", "Operadores do estoque")
+cMaterials = c("Fornecedor", "Transporte", "Empacotamento")
+cMachines = c("Tipo de compressor", "Condições operacionais", "Ajuste das máquinas")
+cMethods = c("Recepção", "Método de transporte")
+cMeasurements = c("Método de registro", "Estimativa da medida")
+cGroups = c("Ação humana", "Materiais", "Máquinas", "Métodos", "Medidas")
+cEffect = "Densidade fora do padrão"
+
+ss.ceDiag(effect = cEffect, causes.gr = cGroups, causes = list(cManpower, cMaterials, cMachines, cMethods, cMeasurements),
+main = "Diagrama de Causa e Efeito", sub = "Densidade de Pellets")
+
+```
+
+
+```{r Folha de verificação}
+
+#FERRAMENTA 3
+
+data_checkSheet = rbind(data.frame(Group = "Ação humana", Cause = cManpower), data.frame(Group = "Máquinas", Cause = cMachines),
+data.frame(Group = "Materiais", Cause = cMaterials), data.frame(Group = "Métodos", Cause = cMethods), data.frame(Group = "Medidas", Cause = cMeasurements))
+
+data_checkSheet$A_supplier = NA
+data_checkSheet$B_supplier = NA
+data_checkSheet$C_supplier = NA
+  
+data_checkSheet
+
+```
+
+```{r Diagrama de Pareto}
+
+#FERRAMENTA 4
+
+data_checkSheet$A_supplier <- c(2, 0, 0, 2, 1, 7, 1, 3, 6, 0, 1, 2, 0)
+data_checkSheet$B_supplier <- c(0, 0, 1, 1, 2, 1, 12, 1, 2, 1, 0, 0, 1)
+data_checkSheet$C_supplier <- c(0, 1, 0, 6, 0, 2, 2, 4, 3, 0, 1, 0, 2)
+data_checkSheet$Total <- data_checkSheet$A_supplier +
+data_checkSheet$B_supplier +
+data_checkSheet$C_supplier
+
+data_pareto <- data_checkSheet[order(data_checkSheet$Total,
+decreasing = TRUE), ]
+data_pareto2 <- data_pareto$Total
+names(data_pareto2) <- data_pareto$Cause
+pareto.chart(data_pareto2, main = "Causas fora do controle", col=heat.colors(length(data_pareto2)))
+
+```
+
+```{r R&R}
+
+Operador<- factor(rep(1:2, each = 12))
+Medidor<- factor(rep(rep(1:3, each = 4), 2))
+Medicao<- factor(rep(1:4, 6))
+
+rr<-data.frame(Operador,Medidor,Medicao,data$pdensity)
+
+my.rr <- ss.rr(var = data.pdensity, part = Medidor,
+               appr = Operador,
+               data = rr,
+               main = "R&R Measure",
+               )
+
+```
+
+```{r Cp e Cpk}
+
+ss.ca.cp(data$pdensity, cc$limits[1], cc$limits[2])
+ss.ca.cpk(data$pdensity, cc$limits[1], cc$limits[2])
+
+ss.study.ca(data$pdensity,
+            cc$limits[1],
+            cc$limits[2],
+            Target = cc$center,
+            alpha = 0.5
+            )
+
+```
+
+## A
+
+```{r Histograma}
+
+#FERRAMENTA 5
+
+hist(data$pdensity, main = "Histograma da densidade dos pellets", sub = "Dados do processo de cerâmica", xlab = expression("Densidade (g"/"cm"^3*")"), ylab = "Frequência", col = "steelblue", border = "white", lwd = 1, las = 1, bg = "gray")
+
+```
+
+
+```{r Scatter}
+
+#FERRAMENTA 6
+
+set.seed(12345)
+
+ptemp <- 15*data$pdensity + rnorm(24) - 140
+plot(data$pdensity ~ ptemp, col = "gray40", pch = 20, main = "Densidade dos Pellets  vs. temperatura", xlab = "Temperatura (Celsius)", ylab = expression("Densidade ("*g/cm^3*")"))
+
+```
+
+```{r cor test}
+
+shapiro.test(data$pdensity)
+shapiro.test(ptemp)
+
+
+correlacao = cor.test(data$pdensity, ptemp)
+correlacao
+
+```
+
+
+```{r stratification}
+
+#FERRAMENTA 7
+
+psupplier = rep(c("A", "B", "C"), each = 8)
+
+boxplot(data$pdensity ~ psupplier, col = "gray70", xlab = "Fornecedor", ylab = expression("Densidade ("*g/cm^3),        main = "Boxplots por fornecedor")
+
+```
+
+## I
+
+```{r 2k fatorial}
+
+data_modelo = data.frame(matrix(ncol = 4, nrow = 16))
+colnames(data_modelo) = c("Temperatura", "Material", "Pressão", "Densidades")
+
+# definir os fatores que serão estudados
+fator1 = c(">25°C", "<25°C")
+fator2 = c("Madeira", "Bambu")
+fator3 = c("Maior", "Menor")
+
+# criar todas as possíveis combinações de níveis de fator
+comb.fatores = expand.grid(fator1, fator2, fator3)
+
+# adicionar as combinações de níveis de fator ao dataframe
+data_modelo$Temperatura = comb.fatores[,1]
+data_modelo$Material = comb.fatores[,2]
+data_modelo$Pressão = comb.fatores[,3]
+
+data_modelo$Densidades = scale(c(5.33, 6.99, 4.23, 6.61,
+                     2.26, 5.75, 3.26, 6.24,
+                     5.7, 7.71, 5.13, 6.76,
+                     2.79, 4.57, 2.48, 6.18)
+                   )*sd(data$pdensity) + mean(data$pdensity)
+
+# ajustar um modelo linear aos dados
+modelo = lm(Densidades ~ Temperatura + Material + Pressão + Temperatura*Material + Temperatura*Pressão + Material*Pressão, data = data_modelo)
+
+summary(modelo)
+
+modelo2 = lm(Densidades ~ Temperatura + Pressão, data = data_modelo)
+
+summary(modelo2)
+
+```
+
+$Densidade = 10.70523 + 0.24162*Temperatura - 0.18377*Pressão$
+
+## C
+
+```{r Carta tipo u}
+
+#Carta tipo "u" supondo uma sequência de 80 dias com suas respectivas quantidades de itens defeituosos
+with(ss.data.pb4, plot(qcc(defects, sizes = rep(1, 80), type = "u")))
+
+```
+
+
+
+
